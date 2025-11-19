@@ -7,6 +7,11 @@ import { ThemeProvider } from '@/components/theme-provider';
 export const metadata: Metadata = {
   title: 'TaskZen | Ваш личный помощник по проектам',
   description: 'Организуйте свои проекты, управляйте задачами и отслеживайте свой прогресс с легкостью.',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
+  },
 };
 
 export default function RootLayout({
@@ -21,7 +26,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased pt-safe pb-safe">
         <ThemeProvider>
           <FirebaseClientProvider>
             {children}

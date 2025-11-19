@@ -29,6 +29,11 @@
     --chart-3: 160 84% 40%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+    
+    --safe-area-inset-top: env(safe-area-inset-top);
+    --safe-area-inset-right: env(safe-area-inset-right);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom);
+    --safe-area-inset-left: env(safe-area-inset-left);
   }
 
   .dark {
@@ -69,5 +74,20 @@
   body.no-select {
     @apply cursor-grabbing;
     user-select: none;
+  }
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: var(--safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: var(--safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: var(--safe-area-inset-right);
   }
 }
