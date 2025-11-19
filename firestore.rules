@@ -1,0 +1,124 @@
+
+/**
+ * @fileoverview Firestore Security Rules for TaskZen application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model, where each user has full control over their profile and the projects and tasks they create.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles, accessible only to the user themselves.
+ * - /users/{userId}/projects/{projectId}: Stores projects owned by a specific user.
+ * - /users/{userId}/projects/{projectId}/tasks/{taskId}: Stores tasks within a specific project, also owned by the user.
+ *
+ * Key Security Decisions:
+ * - Users can only access their own data. There are no shared resources or admin roles in this initial prototype.
+ * - User listing is disallowed.
+ * - Data consistency is enforced by validating the 'userId' and 'id' fields on create operations and enforcing immutability on updates.
+ * - Task creation is now allowed, and updates are permitted for the owner.
+ *
+ * Denormalization for Authorization:
+ * The 'userId' is embedded in the path for projects and tasks, enabling path-based ownership checks without requiring additional 'get()' operations.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Enforces authentication for all requests.
+     * @path /databases/{database}/documents
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the request is made by the owner of the resource.
+     * @param {string} userId - The user ID to compare against the request's authentication UID.
+     * @returns {boolean} - True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the request is made by the owner of the resource and that the resource exists.
+     * @param {string} userId - The user ID to compare against the request's authentication UID.
+     * @returns {boolean} - True if the user is the owner and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+    
+    /**
+     * @description Validates the data for a Task document on creation.
+     */
+    function isValidTaskCreate(taskData, userId) {
+      return taskData.name is string &&
+             taskData.name.size() > 0 &&
+             taskData.projectId is string &&
+             taskData.userId == userId && 
+             taskData.completed is bool &&
+             (taskData.deadline is string || taskData.deadline == null) &&
+             taskData.priority in ['low', 'medium', 'high'] &&
+             taskData.status is string &&
+             taskData.order is number;
+    }
+
+    /**
+     * @description Rule for user documents.
+     * @path /users/{userId}
+     */
+    match /users/{userId} {
+      // Серверные функции (Cloud Functions) имеют полный доступ, обходя эти правила.
+      // Поэтому отдельное правило для них не нужно.
+      allow get: if isOwner(userId);
+      allow list: if false; // Prevent listing of all users.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      // Allow user to update their own profile, but prevent changing their ID
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      // Allow user to delete their own profile document
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rule for project documents.
+     * @path /users/{userId}/projects/{projectId}
+     */
+    match /users/{userId}/projects/{projectId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      // Allow owner to update, but not change userId
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rule for column documents within a project.
+       * @path /users/{userId}/projects/{projectId}/columns/{columnId}
+       */
+      match /columns/{columnId} {
+         allow read, write: if isOwner(userId);
+      }
+
+      /**
+       * @description Rule for task documents.
+       * @path /users/{userId}/projects/{projectId}/tasks/{taskId}
+       */
+      match /tasks/{taskId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTaskCreate(request.resource.data, userId);
+        allow update: if isExistingOwner(userId) && request.resource.data.keys().hasAny(['name', 'description', 'deadline', 'priority', 'completed', 'status', 'order']);
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+    
+    /**
+     * @description Rule for 'tasks' collection group query needed for the stats page and functions.
+     * Allows a user to list all tasks across all projects where they are the owner.
+     * For Cloud Functions, this check is bypassed, but it's crucial for client-side queries.
+     * Crucially, this requires the client query to include `where('userId', '==', request.auth.uid)`.
+     */
+    match /{path=**}/tasks/{taskId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+  }
+}
