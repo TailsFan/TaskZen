@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -254,11 +253,7 @@ export default function ProjectDetailsPage() {
   const [openNewTaskDialog, setOpenNewTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const startPos = useRef({ x: 0, y: 0 });
-  const scrollPos = useRef({ left: 0, top: 0 });
-
+  // УДАЛЕНЫ: scrollContainerRef, isDragging, startPos, scrollPos
 
   const projectRef = useMemoFirebase(
     () => (user && projectId ? doc(firestore, "users", user.uid, "projects", projectId) : null),
@@ -334,44 +329,7 @@ export default function ProjectDetailsPage() {
     }
   }, [editingTask, editForm]);
 
-    const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLElement;
-        // Prevent dragging when interacting with form elements or buttons inside columns
-        if (target.closest('.p-3, .p-2, button, input, textarea, select')) {
-            return;
-        }
-
-        if (scrollContainerRef.current) {
-            isDragging.current = true;
-            startPos.current = { x: e.pageX, y: e.pageY };
-            scrollPos.current = {
-                left: scrollContainerRef.current.scrollLeft,
-                top: scrollContainerRef.current.scrollTop
-            };
-            scrollContainerRef.current.style.cursor = 'grabbing';
-            document.body.classList.add('no-select');
-        }
-    };
-
-    const onMouseLeaveOrUp = () => {
-        if (isDragging.current) {
-            isDragging.current = false;
-            if (scrollContainerRef.current) {
-                scrollContainerRef.current.style.cursor = 'grab';
-            }
-            document.body.classList.remove('no-select');
-        }
-    };
-
-    const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!isDragging.current || !scrollContainerRef.current) return;
-        e.preventDefault();
-        const dx = e.pageX - startPos.current.x;
-        const dy = e.pageY - startPos.current.y;
-        scrollContainerRef.current.scrollLeft = scrollPos.current.left - dx;
-        scrollContainerRef.current.scrollTop = scrollPos.current.top - dy;
-    };
-
+  // УДАЛЕНЫ функции onMouseDown, onMouseMove, onMouseLeaveOrUp
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId, type } = result;
@@ -588,14 +546,8 @@ export default function ProjectDetailsPage() {
           </div>
         }
       />
-      <div 
-        className="flex-1 overflow-auto cursor-grab"
-        ref={scrollContainerRef}
-        onMouseDown={onMouseDown}
-        onMouseLeave={onMouseLeaveOrUp}
-        onMouseUp={onMouseLeaveOrUp}
-        onMouseMove={onMouseMove}
-      >
+      {/* Убран cursor-grab и все обработчики мыши */}
+      <div className="flex-1 overflow-auto">
         <DragDropContext onDragEnd={onDragEnd}>
             <Droppable
               droppableId="all-columns"
@@ -636,7 +588,8 @@ export default function ProjectDetailsPage() {
                                     <Trash2 className="w-4 h-4 text-muted-foreground" />
                                 </Button>
                               </div>
-                              <div className="flex-1 overflow-y-auto">
+                              {/* Добавлен min-h-0 для корректной работы вертикальной прокрутки */}
+                              <div className="flex-1 overflow-y-auto min-h-0">
                                   <Droppable droppableId={column.id} type="task">
                                   {(provided, snapshot) => (
                                       <div
