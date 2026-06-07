@@ -636,16 +636,17 @@ export default function ProjectDetailsPage() {
                                     <Trash2 className="w-4 h-4 text-muted-foreground" />
                                 </Button>
                               </div>
-                              <div className="flex-1 overflow-y-auto">
-                                  <Droppable droppableId={column.id} type="task">
-                                  {(provided, snapshot) => (
-                                      <div
-                                          ref={provided.innerRef}
-                                          {...provided.droppableProps}
-                                          className={cn(
-                                          "p-2 space-y-3 rounded-b-lg min-h-[100px] flex-1",
-                                          snapshot.isDraggingOver && "bg-accent/50"
-                                          )}
+                              <div className="flex-1 overflow-y-auto min-h-0" style={{ touchAction: 'pan-y' }}>
+  <Droppable droppableId={column.id} type="task">
+    {(provided, snapshot) => (
+      <div
+        ref={provided.innerRef}
+        {...provided.droppableProps}
+        className={cn(
+          "p-2 space-y-3 rounded-b-lg min-h-[100px] flex-1",
+          snapshot.isDraggingOver && "bg-accent/50"
+        )}
+        style={{ touchAction: 'pan-y' }}
                                       >
                                           {columnTasks.length > 0 ? (
                                           columnTasks.map((task, taskIndex) => (
