@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -233,11 +234,7 @@ function ResizableColumn({ children }: { children: React.ReactNode }) {
     }, [onMouseMove, onMouseUp]);
 
     return (
-        <div 
-            ref={columnRef} 
-            className={cn("relative rounded-lg border bg-muted/60 flex flex-col h-full column-wrapper", className)} 
-            style={{ width: '320px' }}
-        >
+        <div ref={columnRef} className="relative rounded-lg border bg-muted/60 flex flex-col h-full" style={{ width: '320px' }}>
             {children}
             <div 
                 ref={resizerRef}
@@ -257,7 +254,11 @@ export default function ProjectDetailsPage() {
   const [openNewTaskDialog, setOpenNewTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // УДАЛЕНЫ: scrollContainerRef, isDragging, startPos, scrollPos
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const scrollPos = useRef({ left: 0, top: 0 });
+
 
   const projectRef = useMemoFirebase(
     () => (user && projectId ? doc(firestore, "users", user.uid, "projects", projectId) : null),
@@ -333,7 +334,44 @@ export default function ProjectDetailsPage() {
     }
   }, [editingTask, editForm]);
 
-  // УДАЛЕНЫ функции onMouseDown, onMouseMove, onMouseLeaveOrUp
+    const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement;
+        // Prevent dragging when interacting with form elements or buttons inside columns
+        if (target.closest('.p-3, .p-2, button, input, textarea, select')) {
+            return;
+        }
+
+        if (scrollContainerRef.current) {
+            isDragging.current = true;
+            startPos.current = { x: e.pageX, y: e.pageY };
+            scrollPos.current = {
+                left: scrollContainerRef.current.scrollLeft,
+                top: scrollContainerRef.current.scrollTop
+            };
+            scrollContainerRef.current.style.cursor = 'grabbing';
+            document.body.classList.add('no-select');
+        }
+    };
+
+    const onMouseLeaveOrUp = () => {
+        if (isDragging.current) {
+            isDragging.current = false;
+            if (scrollContainerRef.current) {
+                scrollContainerRef.current.style.cursor = 'grab';
+            }
+            document.body.classList.remove('no-select');
+        }
+    };
+
+    const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isDragging.current || !scrollContainerRef.current) return;
+        e.preventDefault();
+        const dx = e.pageX - startPos.current.x;
+        const dy = e.pageY - startPos.current.y;
+        scrollContainerRef.current.scrollLeft = scrollPos.current.left - dx;
+        scrollContainerRef.current.scrollTop = scrollPos.current.top - dy;
+    };
+
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId, type } = result;
@@ -550,132 +588,119 @@ export default function ProjectDetailsPage() {
           </div>
         }
       />
-      {/* Убран cursor-grab и все обработчики мыши */}
-      {/* Измените: flex-1 overflow-auto -> flex-1 overflow-x-auto overflow-y-hidden */}
-<div className="flex-1 overflow-x-auto overflow-y-hidden">
-  <DragDropContext onDragEnd={onDragEnd}>
-    <Droppable
-      droppableId="all-columns"
-      type="column"
-      direction="horizontal"
-    >
-      {(provided) => (
-        <div
-          {...provided.droppableProps}
-          ref={provided.innerRef}
-          className="flex gap-6 h-full items-stretch p-4 sm:p-6" // items-start -> items-stretch
-        >
-          {orderedColumns && orderedColumns.map((column, index) => {
-            const columnTasks = tasks?.filter(t => t.status === column.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)) || [];
-            return (
-              <Draggable
-                key={column.id}
-                draggableId={column.id}
-                index={index}
-              >
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    className="flex-shrink-0 h-full" // добавили h-full
-                    style={provided.draggableProps.style}
-                  >
-                    <ResizableColumn>
-                      {/* Заголовок колонки - drag handle только здесь */}
-                      <div 
-                        {...provided.dragHandleProps} 
-                        className="p-3 flex items-center justify-between flex-shrink-0 border-b cursor-grab drag-handle"
+      <div 
+        className="flex-1 overflow-auto cursor-grab"
+        ref={scrollContainerRef}
+        onMouseDown={onMouseDown}
+        onMouseLeave={onMouseLeaveOrUp}
+        onMouseUp={onMouseLeaveOrUp}
+        onMouseMove={onMouseMove}
+      >
+        <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable
+              droppableId="all-columns"
+              type="column"
+              direction="horizontal"
+            >
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="flex gap-6 h-full items-start p-4 sm:p-6"
+                >
+                  {orderedColumns && orderedColumns.map((column, index) => {
+                    const columnTasks = tasks?.filter(t => t.status === column.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)) || [];
+                    return (
+                      <Draggable
+                        key={column.id}
+                        draggableId={column.id}
+                        index={index}
                       >
-                        <Input
-                          defaultValue={column.title}
-                          onBlur={(e) => renameColumn(column.id, e.target.value)}
-                          className="bg-transparent border-none text-lg font-bold focus:ring-1 focus:ring-ring"
-                          onTouchStart={(e) => e.stopPropagation()}
-                        />
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => setColumnToDelete(column)}
-                          onTouchStart={(e) => e.stopPropagation()}
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                      </div>
-                      
-                      {/* Задачи - ВАЖНЫЕ ИЗМЕНЕНИЯ */}
-                      <div 
-                        className="flex-1 overflow-y-auto min-h-0 column-tasks"
-                        onTouchStart={(e) => {
-                          // Разрешаем вертикальный скролл, даже если DnD пытается его заблокировать
-                          e.stopPropagation();
-                        }}
-                      >
-                        <Droppable droppableId={column.id} type="task">
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className={cn(
-                                "p-2 space-y-3 rounded-b-lg min-h-[100px]",
-                                snapshot.isDraggingOver && "bg-accent/50"
-                              )}
-                            >
-                              {columnTasks.length > 0 ? (
-                                columnTasks.map((task, taskIndex) => (
-                                  <Draggable
-                                    key={task.id}
-                                    draggableId={task.id}
-                                    index={taskIndex}
-                                    isDragDisabled={false}
-                                  >
-                                    {(provided) => (
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className="flex-shrink-0"
+                             style={{
+                                ...provided.draggableProps.style,
+                            }}
+                          >
+                            <ResizableColumn>
+                              <div {...provided.dragHandleProps} className="p-3 flex items-center justify-between flex-shrink-0 border-b cursor-grab">
+                                <Input
+                                  defaultValue={column.title}
+                                  onBlur={(e) => renameColumn(column.id, e.target.value)}
+                                  className="bg-transparent border-none text-lg font-bold focus:ring-1 focus:ring-ring"
+                                />
+                                <Button variant="ghost" size="icon" onClick={() => setColumnToDelete(column)}>
+                                    <Trash2 className="w-4 h-4 text-muted-foreground" />
+                                </Button>
+                              </div>
+                              <div className="flex-1 overflow-y-auto">
+                                  <Droppable droppableId={column.id} type="task">
+                                  {(provided, snapshot) => (
                                       <div
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        onClick={() => setEditingTask(task)}
-                                        style={provided.draggableProps.style}
-                                        className="touch-manipulation"
+                                          ref={provided.innerRef}
+                                          {...provided.droppableProps}
+                                          className={cn(
+                                          "p-2 space-y-3 rounded-b-lg min-h-[100px] flex-1",
+                                          snapshot.isDraggingOver && "bg-accent/50"
+                                          )}
                                       >
-                                        <TaskItem 
-                                          task={task} 
-                                          onToggle={(e) => {
-                                            e.stopPropagation();
-                                            handleToggleTask(task, !task.completed);
-                                          }}
-                                          onDelete={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteTask(task.id);
-                                          }}
-                                        />
+                                          {columnTasks.length > 0 ? (
+                                          columnTasks.map((task, taskIndex) => (
+                                              <Draggable
+                                              key={task.id}
+                                              draggableId={task.id}
+                                              index={taskIndex}
+                                              >
+                                              {(provided) => (
+                                                  <div
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    {...provided.dragHandleProps}
+                                                    onClick={() => setEditingTask(task)}
+                                                    style={{
+                                                        ...provided.draggableProps.style,
+                                                    }}
+                                                  >
+                                                  <TaskItem 
+                                                      task={task} 
+                                                      onToggle={(e) => {
+                                                          e.stopPropagation();
+                                                          handleToggleTask(task, !task.completed);
+                                                      }}
+                                                      onDelete={(e) => {
+                                                          e.stopPropagation();
+                                                          handleDeleteTask(task.id);
+                                                      }}
+                                                  />
+                                                  </div>
+                                              )}
+                                              </Draggable>
+                                          ))
+                                          ) : (
+                                          !areTasksLoading && <div className="text-center py-12 text-muted-foreground">
+                                              <p>Пока нет задач.</p>
+                                          </div>
+                                          )}
+                                          {provided.placeholder}
                                       </div>
-                                    )}
-                                  </Draggable>
-                                ))
-                              ) : (
-                                !areTasksLoading && (
-                                  <div className="text-center py-12 text-muted-foreground">
-                                    <p>Пока нет задач.</p>
-                                  </div>
-                                )
-                              )}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-                      </div>
-                    </ResizableColumn>
-                  </div>
-                )}
-              </Draggable>
-            );
-          })}
-          {provided.placeholder}
-        </div>
-      )}
-    </Droppable>
-  </DragDropContext>
-</div>
+                                  )}
+                                  </Droppable>
+                              </div>
+                            </ResizableColumn>
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+        </DragDropContext>
+      </div>
 
       <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
         <DialogContent>
