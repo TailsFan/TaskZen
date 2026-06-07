@@ -36,6 +36,23 @@
     --safe-area-inset-left: env(safe-area-inset-left);
   }
 
+  /* Мобильный touch-скролл для колонок */
+.column-tasks {
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain;
+  touch-action: pan-y !important; /* ВАЖНО: разрешаем только вертикальный скролл */
+}
+
+/* Предотвращаем блокировку скролла DnD */
+.column-wrapper {
+  touch-action: pan-x pan-y;
+}
+
+/* Для drag-handle сохраняем возможность drag */
+.drag-handle {
+  touch-action: none;
+}
+
   .dark {
     --background: 220 10% 10%;
     --foreground: 0 0% 98%;
